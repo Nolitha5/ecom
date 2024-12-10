@@ -1,0 +1,65 @@
+
+{% extends 'myApp/base.html' %}
+
+
+{% block content %}
+    <!-- Header-->
+    <header class="py-5" style="background-color: #6f42c1;">
+        <div class="container px-4 px-lg-5 my-5">
+            <div class="text-center text-white">
+                <h1 class="display-4 fw-bolder">Checkout</h1>
+                <p class="lead fw-normal text-white-50 mb-0">Order review.</p>
+            </div>
+        </div>
+    </header>
+   <br/>
+   <div class="cointainer">
+   <div class="row">
+        <class="col-md-6 offset-md-3">
+            <div class="card">
+                <div class="card-header">
+                  Order Summary
+                </div>
+                <div class="card-body">
+                    {% for product in cart_products %}
+                    {{ product.name }}:
+                    R {{ product.price }}
+                </br>
+                    <small>Quantity:
+                     
+            {% for key, value in quantities.items %}
+            {% if key == product.id|slugify %}
+               {{ value }}
+            {% endif %}
+        {% endfor %}</small>
+    <br/><br/>
+   
+                    {% endfor %}
+                    Total:    R {{ totals }}
+                <br/><br/> 
+               <a href="{% url 'addcart_summary' %}" class="btn btn-sm btn-outline-secondary">Update Items</a>
+                </div>
+            </div>
+            <br/><br/>
+
+            <div class="card">
+                <div class="card-header">
+                  Shipping Info
+                </div>
+                <div class="card-body">
+                <form method="POST" action="{% url 'billing_info' %}">
+                        {% csrf_token %}
+                        {{ shippping_form.as_p }}
+                </div>
+            </div>
+            <br/>
+         <button type="submit" class="btn btn-secondary">Continue To Billing</button>
+                </form>
+            <br/>
+       
+            
+        </div>
+    </div>
+
+</div>
+   {% endblock %}
