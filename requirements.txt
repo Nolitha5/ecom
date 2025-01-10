@@ -7,3 +7,4 @@ pys==0.0.14.post4
 python-dotenv==1.0.1
 sqlparse==0.5.1
 tzdata==2024.2
+dj-database-url==1.2.0 
