@@ -10,7 +10,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+import dj_database_url
 from pathlib import Path
 import os 
 #import django_heroku
@@ -26,12 +26,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-n*_5+(=t&)%_^0h-l&fa#tu!cwk6#&+bt#u*#b-3gc^ii_hg_5'
+SECRET_KEY = os.environ.get("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DEBUG","False").lower()=="true"
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(" ")
 
 
 # Application definition
@@ -88,15 +88,11 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
-        #'ENGINE': 'django.db.backends.postgresql',
-        #'NAME': 'railway',
-        #'USER': 'postgres',
-        #'PASSWORD': os.environ.get('BD_PASSWORD_YO'),
-        #'HOST': 'postgres.railway.internal',
-        #'PORT': '5432',
-        
+       
     }
 }
+database_url = os.environ.get("DATABASES_URL")
+DATABASES["default"]= dj_database_url.parse(database_url)
 
 
 # Password validation
