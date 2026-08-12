@@ -1,141 +1,153 @@
-
 {% extends 'myApp/base.html' %}
 
-
 {% block content %}
-    <!-- Header-->
-    <header class="py-5" style="background-color: #6f42c1;">
-        <div class="container px-4 px-lg-5 my-5">
-            <div class="text-center text-white">
-                <h1 class="display-4 fw-bolder">Shopping Cart</h1>
-                <p class="lead fw-normal text-white-50 mb-0">View ur cart..</p>
-            </div>
+
+<header class="py-5" style="background-color: #6f42c1;">
+    <div class="container px-4 px-lg-5 my-5">
+        <div class="text-center text-white">
+            <h1 class="display-4 fw-bolder">Shopping Cart</h1>
+            <p class="lead fw-normal text-white-50 mb-0">Review your items before checkout</p>
         </div>
-    </header>
-   <br/>
-   <div class="container">
+    </div>
+</header>
+
+<div class="container py-5">
     {% if cart_products %}
-    {% for product in cart_products %}
-      
-    <div class="card mb-3">
-        <div class="row g-0">
-          <div class="col-md-4">
-            <img src="{{ product.image.url }}" class="img-fluid rounded-start" alt="...">
-          </div>
-          <div class="col-md-8">
-            <div class="card-body">
-                <center>
-              <h5 class="card-title">{{ product.name }}</h5>
-              <p class="card-text">{{ product.description }}</p>
-        
-        <br/><br/>
-        <div class="row justify-content-center">
 
+        {% for product in cart_products %}
+        <div class="card mb-3 border-0 shadow-sm">
+            <div class="row g-0">
+                <div class="col-md-3">
+                    <img src="{{ product.image.url }}" class="img-fluid rounded-start h-100 object-fit-cover" alt="{{ product.name }}">
+                </div>
+                <div class="col-md-9">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title fw-bold mb-1">{{ product.name }}</h5>
+                                <p class="text-muted small mb-2">{{ product.description }}</p>
+                                <span class="fw-bold" style="color: #6f42c1;">R{{ product.price }}</span>
+                            </div>
+                        </div>
 
-          <div class="col-md-2">Quantity:</div>
-          <div class="col-md-2">                   
-          <select class="form-selec form-select-sm" id="select{{product.id}}">
-            
-            {% for key, value in quantities.items %}
-            {% if key == product.id|slugify %}
-                <option selected>{{ value.quantity }}</option>
-            {% endif %}
-        {% endfor %}
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option> 
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-          <br/><br/>
-        </div>
-      </div>
-        <br/><br/>
-            <a href="{% url 'home' %}" class="btn btn-secondary">Home</a>
-            <button type="button" data-index="{{product.id}}" class="btn btn-secondary update-cart">Update</button>
-            <button type="button" data-index="{{ product.id }}" class="btn btn-danger delete-product">Remove</button>
+                        <div class="d-flex align-items-center gap-3 mt-3">
+                            <label class="form-label fw-semibold mb-0">Qty:</label>
 
-            </center>
+                            <!-- Quantity stepper -->
+                            <div class="input-group" style="width: 130px;">
+                                <button class="btn btn-outline-secondary btn-sm qty-minus" type="button" data-id="{{ product.id }}">−</button>
+                                <input type="number"
+                                       class="form-control form-control-sm text-center qty-input"
+                                       id="qty-{{ product.id }}"
+                                       data-id="{{ product.id }}"
+                                       value="{% for key, value in quantities.items %}{% if key == product.id|stringformat:'s' %}{{ value }}{% endif %}{% endfor %}"
+                                       min="1" max="99">
+                                <button class="btn btn-outline-secondary btn-sm qty-plus" type="button" data-id="{{ product.id }}">+</button>
+                            </div>
+
+                            <button type="button" data-id="{{ product.id }}" class="btn btn-secondary btn-sm update-cart">
+                                <i class="bi bi-arrow-repeat me-1"></i>Update
+                            </button>
+                            <button type="button" data-id="{{ product.id }}" class="btn btn-outline-danger btn-sm delete-product">
+                                <i class="bi bi-trash me-1"></i>Remove
+                            </button>
+                        </div>
+
+                        <div id="feedback-{{ product.id }}" class="mt-2" style="display:none;"></div>
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
-      </div> 
-    </div>
-    
+        {% endfor %}
 
+        <div class="card border-0 shadow-sm p-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0 fw-bold">Total: <span style="color:#6f42c1;">R{{ totals }}</span></h4>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'home' %}" class="btn btn-outline-secondary">Continue Shopping</a>
+                    <a href="{% url 'checkout' %}" class="btn btn-success">Checkout →</a>
+                </div>
+            </div>
+        </div>
 
-
-    {% endfor %}
-    <div align="right">
-    <h3>Total: R{{ totals }}</h3>
-    <a href="{% url 'checkout' %}"= class="btn btn-success">Checkout<a/>
-    </div>
-    <br/><br/><br/>
     {% else %}
-    Your cart is empty!
-    
-    <br/><br/><br/><br/><br/><br/><br/>
-    <br/><br/><br/><br/><br/><br/><br/>
-   {% endif %}
+        <div class="text-center py-5">
+            <i class="bi bi-cart-x" style="font-size: 4rem; color: #ccc;"></i>
+            <h4 class="mt-3 text-muted">Your cart is empty</h4>
+            <a href="{% url 'home' %}" class="btn btn-secondary mt-3">Start Shopping</a>
+        </div>
+    {% endif %}
 </div>
-   <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
-  
 
+<script>
+// +/- buttons on cart
+$(document).on('click', '.qty-minus', function() {
+    var id = $(this).data('id');
+    var input = $('#qty-' + id);
+    var val = parseInt(input.val()) || 1;
+    if (val > 1) input.val(val - 1);
+});
 
-   <script>
+$(document).on('click', '.qty-plus', function() {
+    var id = $(this).data('id');
+    var input = $('#qty-' + id);
+    var val = parseInt(input.val()) || 1;
+    input.val(val + 1);
+});
 
-    //update cart 
-    $(document).on('click', '.update-cart', function(e) {
-      e.preventDefault();
-      var productid = $(this).data('index');
-      var quantity = $('#select' + productid + ' option:selected').val();
-  
-      $.ajax({
+// Update cart
+$(document).on('click', '.update-cart', function(e) {
+    e.preventDefault();
+    var productId = $(this).data('id');
+    var quantity = parseInt($('#qty-' + productId).val()) || 1;
+
+    $.ajax({
         type: 'POST',
         url: '{% url "addcart_update" %}',
         data: {
-          product_id:$(this).data('index'),
-          product_qty: $('#select' + productid +'option:selected'),
-          //product_id: productid,
-          //product_qty: quantity
-          csrfmiddlewaretoken: '{{ csrf_token }}'
-          //action: 'post'
+            product_id: productId,
+            product_qty: quantity,
+            csrfmiddlewaretoken: '{{ csrf_token }}',
+            action: 'post'
         },
         success: function(json) {
-          //console.log(json)
-          //document.getElementById("cart_quantity").textContent = json.qty;
-          location.reload();
+            document.getElementById('cart_quantity').textContent = json.qty;
+            $('#feedback-' + productId)
+                .removeClass('alert-danger')
+                .addClass('alert alert-success alert-sm py-1 px-2 small')
+                .html('<i class="bi bi-check-circle me-1"></i>Updated!')
+                .show()
+                .delay(2000).fadeOut();
         },
-        error: function(xhr, errmsg, err) {
-         
+        error: function() {
+            $('#feedback-' + productId)
+                .addClass('alert alert-danger alert-sm py-1 px-2 small')
+                .html('Update failed.')
+                .show();
         }
-      });
-    })
+    });
+});
 
-    //delete items
+// Delete from cart
+$(document).on('click', '.delete-product', function(e) {
+    e.preventDefault();
+    var productId = $(this).data('id');
 
-    $(document).on('click', '.delete-product', function(e) {
-      e.preventDefault();
-      //var productid = $(this).data('index');
-  
-      $.ajax({
+    $.ajax({
         type: 'POST',
         url: '{% url "addcart_delete" %}',
         data: {
-          product_id:$(this).data('index'),
-          csrfmiddlewaretoken: '{{ csrf_token }}',
-          action: 'post'
+            product_id: productId,
+            csrfmiddlewaretoken: '{{ csrf_token }}',
+            action: 'post'
         },
-    
         success: function(json) {
-          //document.getElementById("cart_quantity").textContent = json.qty;
-          location.reload();
+            document.getElementById('cart_quantity').textContent = json.qty;
+            location.reload();
         },
-        error: function(xhr, errmsg, err) {
-         
-        }
-      });
+        error: function() {}
     });
-   </script>
+});
+</script>
 
-   {% endblock %}
+{% endblock %}
