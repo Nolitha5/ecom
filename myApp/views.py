@@ -184,7 +184,7 @@ def register_user(request):
          messages.success(request, 'username created,please fill your info below')
          return redirect('update_info')
      else:
-         messages.success(request, 'error please register again')
-         return redirect('register')
+         messages.error(request, 'Registration failed. Please correct the errors below.')
+         return render(request, 'myApp/register.html', {'form': form})
     else:
       return render(request, 'myApp/register.html',{'form':form})
