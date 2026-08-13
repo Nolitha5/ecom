@@ -1,65 +1,77 @@
-
 {% extends 'myApp/base.html' %}
-
-
 {% block content %}
-    <!-- Header-->
-    <header class="py-5" style="background-color: #6f42c1;">
-        <div class="container px-4 px-lg-5 my-5">
-            <div class="text-center text-white">
-                <h1 class="display-4 fw-bolder">Checkout</h1>
-                <p class="lead fw-normal text-white-50 mb-0">Order review.</p>
-            </div>
-        </div>
-    </header>
-   <br/>
-   <div class="cointainer">
-   <div class="row">
-        <class="col-md-6 offset-md-3">
-            <div class="card">
-                <div class="card-header">
-                  Order Summary
-                </div>
-                <div class="card-body">
-                    {% for product in cart_products %}
-                    {{ product.name }}:
-                    R {{ product.price }}
-                </br>
-                    <small>Quantity:
-                     
-            {% for key, value in quantities.items %}
-            {% if key == product.id|slugify %}
-               {{ value }}
-            {% endif %}
-        {% endfor %}</small>
-    <br/><br/>
-   
-                    {% endfor %}
-                    Total:    R {{ totals }}
-                <br/><br/> 
-               <a href="{% url 'addcart_summary' %}" class="btn btn-sm btn-outline-secondary">Update Items</a>
-                </div>
-            </div>
-            <br/><br/>
 
-            <div class="card">
-                <div class="card-header">
-                  Shipping Info
-                </div>
-                <div class="card-body">
-                <form method="POST" action="{% url 'billing_info' %}">
-                        {% csrf_token %}
-                        {{ shippping_form.as_p }}
-                </div>
-            </div>
-            <br/>
-         <button type="submit" class="btn btn-secondary">Continue To Billing</button>
-                </form>
-            <br/>
-       
-            
+<header class="page-header text-white text-center">
+    <div class="container">
+        <h1 class="display-4 fw-bold mb-2">Checkout</h1>
+        <p class="lead text-white-50">Almost there — review your order</p>
+    </div>
+</header>
+
+<!-- Progress bar -->
+<div class="bg-white border-bottom py-3">
+    <div class="container">
+        <div class="d-flex justify-content-center align-items-center gap-2 small fw-semibold">
+            <span class="badge bg-ft-purple rounded-pill px-3 py-2">1. Cart</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+            <span class="badge bg-ft-purple rounded-pill px-3 py-2">2. Shipping</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+            <span class="badge bg-light text-muted rounded-pill px-3 py-2">3. Payment</span>
         </div>
     </div>
-
 </div>
-   {% endblock %}
+
+<div class="container py-5">
+    <div class="row g-4">
+
+        <!-- Order Summary -->
+        <div class="col-lg-5 order-lg-2">
+            <div class="card border-0 shadow-sm p-4 sticky-top" style="border-radius:16px; top:1.5rem;">
+                <h5 class="fw-bold mb-4"><i class="bi bi-bag me-2" style="color:#6f42c1;"></i>Order Summary</h5>
+                {% for product in cart_products %}
+                <div class="d-flex align-items-center gap-3 mb-3 pb-3 border-bottom">
+                    <img src="{{ product.image.url }}" alt="{{ product.name }}" style="width:54px; height:54px; object-fit:cover; border-radius:8px;">
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold small">{{ product.name }}</div>
+                        <div class="text-muted small">
+                            Qty: {% for key, value in quantities.items %}{% if key == product.id|stringformat:'s' %}{{ value }}{% endif %}{% endfor %}
+                        </div>
+                    </div>
+                    <div class="fw-bold small" style="color:#6f42c1;">R{{ product.price }}</div>
+                </div>
+                {% endfor %}
+                <div class="d-flex justify-content-between fw-bold mt-2">
+                    <span>Total</span>
+                    <span style="color:#6f42c1; font-size:1.1rem;">R{{ totals }}</span>
+                </div>
+                <a href="{% url 'addcart_summary' %}" class="btn btn-outline-secondary btn-sm mt-3 w-100">
+                    <i class="bi bi-pencil me-1"></i>Edit Cart
+                </a>
+            </div>
+        </div>
+
+        <!-- Shipping Form -->
+        <div class="col-lg-7 order-lg-1">
+            <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
+                <h5 class="fw-bold mb-4"><i class="bi bi-truck me-2" style="color:#6f42c1;"></i>Shipping Details</h5>
+                <form method="POST" action="{% url 'billing_info' %}">
+                    {% csrf_token %}
+                    {% for field in shippping_form %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">{{ field.label }}</label>
+                        {{ field }}
+                        {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    {% endfor %}
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-ft btn-lg fw-semibold" style="border-radius:50px;">
+                            Continue to Payment <i class="bi bi-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

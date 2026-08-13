@@ -1,47 +1,46 @@
 {% extends 'myApp/base.html' %}
 {% block content %}
 
-<!-- Header-->
-<header class="py-5" style="background-color: #6f42c1;">
-    <div class="container px-4 px-lg-5 my-5">
-        <div class="text-center text-white">
-            <h1 class="display-4 fw-bolder">Update Info</h1>
-            <p class="lead fw-normal text-white-50 mb-0">Update user Info</p>
-        </div>
+<header class="page-header text-white text-center">
+    <div class="container">
+        <h1 class="display-4 fw-bold mb-2">Shipping Info</h1>
+        <p class="lead text-white-50">Manage your billing and shipping details</p>
     </div>
 </header>
-<div class="container">
-    <div class="row">
-        <centre>
-            <div class="col-md-6 offset-md-3">
-          
-                <br/><br/>
-                <strong>Billing Information</strong>
-                <br/><br/>
-                <form method="POST" action="{% url 'update_info' %}">
-                  {% csrf_token %}
-                  
-                  <br/><br/>
-                {{ form.as_p }}
-                <br/><br/>
-                <strong>Shipping Information</strong>
-                    {{ shipping_form.as_p }}
 
-                <br/><br/>
-                <button type="summit" class="btn btn-secondary">Update Profile</button>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-7">
+            <form method="POST" action="{% url 'update_info' %}">
+                {% csrf_token %}
 
-                  </form>
-
-                <br/><br/>
-                
-
-                <br/><br/>
-                <br/><br/>
-                <br/><br/>
-                <br/><br/>
-
+                <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius:16px;">
+                    <h5 class="fw-bold mb-4"><i class="bi bi-credit-card me-2" style="color:#6f42c1;"></i>Billing Information</h5>
+                    {% for field in form %}
+                    <div class="mb-3">
+                        {{ field }}
+                        {% if field.help_text %}<div class="form-text">{{ field.help_text|safe }}</div>{% endif %}
+                        {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    {% endfor %}
                 </div>
-        </centre>
+
+                <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius:16px;">
+                    <h5 class="fw-bold mb-4"><i class="bi bi-truck me-2" style="color:#6f42c1;"></i>Shipping Information</h5>
+                    {% for field in shipping_form %}
+                    <div class="mb-3">
+                        {{ field }}
+                        {% if field.help_text %}<div class="form-text">{{ field.help_text|safe }}</div>{% endif %}
+                        {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-ft btn-lg fw-semibold" style="border-radius:50px;">Save All Info</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}
