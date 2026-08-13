@@ -1,205 +1,273 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from addcart.addcart import Cart
 from payment.forms import ShippingForm, PaymentForm
 from payment.models import ShippingAddress, Order, OrderItem
 from django.contrib.auth.models import User
 from django.contrib import messages
 from myApp.models import Product, Profile
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 import datetime
+import stripe
+import json
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
-def orders(request,pk):
-    if request.user.is_authenticated and request.user.is_superuser:
-        #get order
-     order = Order.objects.get(id=pk)
-     #order items
-     items = OrderItem.objects.filter(order=pk)
-     if request.POST:
-          status = request.POST['shipping_status']
-          #check if true or false
-          if status == "true":
-              order = Order.objects.filter(id=pk)
-              now = datetime.datetime.now()
-              order.update(shipped=True,date_shipped = now)
-          else:
-              order = Order.objects.filter(id=pk)
-              order.update(shipped=False)
-          messages.success(request,"Shipping status updated")
-          return redirect('home')
-     return render(request,"payment/orders.html",{"order":order,"items":items})
-    else:
-     messages.success(request,"Access Denied!")
-     return redirect('home')
- 
+# ─── Customer: track your order ───────────────────────────────────────────────
+
+def track_order(request):
+    order = None
+    error = None
+    if request.method == 'POST':
+        tracking_number = request.POST.get('tracking_number', '').strip()
+        email = request.POST.get('email', '').strip()
+        try:
+            order = Order.objects.get(tracking_number=tracking_number, email=email)
+            items = OrderItem.objects.filter(order=order).select_related('product')
+            steps = [
+                ('pending', 'Ordered', 'bag-check'),
+                ('processing', 'Processing', 'gear'),
+                ('shipped', 'Shipped', 'truck'),
+                ('delivered', 'Delivered', 'house-check'),
+            ]
+            status_order = ['pending', 'processing', 'shipped', 'delivered']
+            step_index = status_order.index(order.status) if order.status in status_order else 0
+            return render(request, 'payment/track_order.html', {
+                'order': order,
+                'items': items,
+                'found': True,
+                'steps': steps,
+                'step_index': step_index,
+            })
+        except Order.DoesNotExist:
+            error = "No order found with that tracking number and email. Please check and try again."
+    return render(request, 'payment/track_order.html', {'error': error, 'found': False})
+
+
+# ─── Customer: my orders (logged in) ─────────────────────────────────────────
+
+def my_orders(request):
+    if not request.user.is_authenticated:
+        messages.error(request, "Please log in to view your orders.")
+        return redirect('login')
+    orders = Order.objects.filter(user=request.user).order_by('-date_ordered')
+    return render(request, 'payment/my_orders.html', {'orders': orders})
+
+
+def my_order_detail(request, pk):
+    if not request.user.is_authenticated:
+        return redirect('login')
+    order = get_object_or_404(Order, pk=pk, user=request.user)
+    items = OrderItem.objects.filter(order=order).select_related('product')
+    return render(request, 'payment/my_order_detail.html', {'order': order, 'items': items})
+
+
+# ─── Admin dashboards ─────────────────────────────────────────────────────────
+
+def orders(request, pk):
+    if not (request.user.is_authenticated and request.user.is_superuser):
+        messages.error(request, "Access Denied!")
+        return redirect('home')
+    order = get_object_or_404(Order, id=pk)
+    items = OrderItem.objects.filter(order=pk)
+    if request.POST:
+        status = request.POST.get('shipping_status')
+        new_status = request.POST.get('order_status', order.status)
+        if status == "true":
+            Order.objects.filter(id=pk).update(shipped=True, status=new_status)
+        else:
+            Order.objects.filter(id=pk).update(shipped=False, status=new_status)
+        messages.success(request, "Order updated successfully.")
+        return redirect('orders', pk=pk)
+    return render(request, "payment/orders.html", {"order": order, "items": items})
+
+
 def not_shipped_dash(request):
-    if request.user.is_authenticated and request.user.is_superuser:
-        orders = Order.objects.filter(shipped=False)  
-        if request.POST:
-          status = request.POST['shipping_status']
-          num = request.POST['num']
-          order = Order.objects.filter(id=num)
-          now = datetime.datetime.now()
-          order.update(shipped=True,date_shipped = now)
-          messages.success(request,"Shipping status updated")
-          return redirect('home')  
-        return render(request, "payment/not_shipped_dash.html", {"orders":orders}) 
-    else:
-     messages.success(request,"Access Denied!")
-     return redirect('home')
+    if not (request.user.is_authenticated and request.user.is_superuser):
+        messages.error(request, "Access Denied!")
+        return redirect('home')
+    orders = Order.objects.filter(shipped=False).order_by('-date_ordered')
+    if request.POST:
+        num = request.POST.get('num')
+        Order.objects.filter(id=num).update(shipped=True)
+        messages.success(request, "Marked as shipped.")
+        return redirect('not_shipped_dash')
+    return render(request, "payment/not_shipped_dash.html", {"orders": orders})
+
 
 def shipped_dash(request):
-   if request.user.is_authenticated and request.user.is_superuser:
-     orders = Order.objects.filter(shipped=True) 
-     if request.POST:
-          status = request.POST['shipping_status']
-          num = request.POST['num']
-          order = Order.objects.filter(id=num)
-          now = datetime.datetime.now()
-          order.update(shipped=False)
-          messages.success(request,"Shipping status updated")
-          return redirect('home')  
-     return render(request, "payment/shipped_dash.html", {"orders":orders}) 
-   else:
-     messages.success(request,"Access Denied!")
-     return redirect('home')
+    if not (request.user.is_authenticated and request.user.is_superuser):
+        messages.error(request, "Access Denied!")
+        return redirect('home')
+    orders = Order.objects.filter(shipped=True).order_by('-date_shipped')
+    if request.POST:
+        num = request.POST.get('num')
+        Order.objects.filter(id=num).update(shipped=False)
+        messages.success(request, "Marked as not shipped.")
+        return redirect('shipped_dash')
+    return render(request, "payment/shipped_dash.html", {"orders": orders})
+
+
+# ─── Checkout flow ────────────────────────────────────────────────────────────
+
+def checkout(request):
+    cart = Cart(request)
+    cart_products = cart.get_prods
+    quantities = cart.get_quants
+    totals = cart.cart_total()
+
+    if not cart.cart:
+        messages.error(request, "Your cart is empty.")
+        return redirect('home')
+
+    if request.user.is_authenticated:
+        try:
+            shipping_user = ShippingAddress.objects.get(user_id=request.user.id)
+            shipping_form = ShippingForm(request.POST or None, instance=shipping_user)
+        except ShippingAddress.DoesNotExist:
+            shipping_form = ShippingForm(request.POST or None)
+    else:
+        shipping_form = ShippingForm(request.POST or None)
+
+    return render(request, "payment/checkout.html", {
+        "cart_products": cart_products,
+        "quantities": quantities,
+        "totals": totals,
+        "shippping_form": shipping_form,
+    })
+
+
+def billing_info(request):
+    if not request.POST:
+        messages.error(request, "Access denied.")
+        return redirect('home')
+
+    cart = Cart(request)
+    cart_products = cart.get_prods
+    quantities = cart.get_quants
+    totals = cart.cart_total()
+
+    request.session['my_shipping'] = dict(request.POST)
+
+    # Create Stripe PaymentIntent
+    try:
+        intent = stripe.PaymentIntent.create(
+            amount=int(float(totals) * 100),  # cents
+            currency='zar',
+            metadata={'integration_check': 'accept_a_payment'},
+        )
+        client_secret = intent.client_secret
+        payment_intent_id = intent.id
+        request.session['payment_intent_id'] = payment_intent_id
+    except stripe.error.StripeError as e:
+        messages.error(request, f"Payment setup failed: {e.user_message}")
+        return redirect('checkout')
+
+    billing_form = PaymentForm()
+    return render(request, "payment/billing_info.html", {
+        "cart_products": cart_products,
+        "quantities": quantities,
+        "totals": totals,
+        "shippping_info": request.POST,
+        "billing_form": billing_form,
+        "stripe_public_key": settings.STRIPE_PUBLIC_KEY,
+        "client_secret": client_secret,
+    })
+
 
 def process_order(request):
-    if request.GET:
-       cart = Cart(request)
-       cart_products = cart.get_prods
-       quantities = cart.get_quants
-       totals = cart.cart_total()
-      
-     #get shipping data
-       payment_form =PaymentForm(request.POST or None)
-       my_shipping = request.session.get('my_shipping')
-       #my_shippnig = request.cart.get('my_shipping')
-       
-        #gather order info
-       #full_name = my_shipping['shipping_full_name']
-       full_name = request.POST['shipping_full_name']
-       email = my_shipping['shipping_email']
-      
-       #create shipping address
-       shipping_address = f"{my_shipping['shipping_address1']}\n{my_shipping['shipping_address2']}\n{my_shipping['shipping_city']}\n{my_shipping['shipping_state']}\n{my_shipping['shipping_zipcode']}\n{my_shipping['shipping_country']}" 
-       #shipping_address = f"{my_shipping['shipping_address1']}\n{my_shipping['shipping_address2']}\n{my_shipping['shipping_city']}\n{my_shipping['shipping_state']}\n{my_shipping['shipping_zipcode']}\n{my_shipping['shipping_country']}" 
-       """
-       full_name = my_shipping.get('shipping_full_name', '')
-       email = my_shipping.get('shipping_email', '')
-       shipping_address = f"{my_shipping.get('shipping_address1', '')}\n" \
-                           f"{my_shipping.get('shipping_address2', '')}\n" \
-                           f"{my_shipping.get('shipping_city', '')}\n" \
-                           f"{my_shipping.get('shipping_state', '')}\n" \
-                           f"{my_shipping.get('shipping_zipcode', '')}\n" \
-                           f"{my_shipping.get('shipping_country', '')}"
+    if not request.POST:
+        messages.error(request, "Access denied.")
+        return redirect('home')
 
-       """
-       amount_paid = totals
-       
-
-       if request.user.is_authenticated:
-            #logged in
-            user =request.user
-            create_order = Order(user=user,full_name=full_name,email=email,shipping_address=shipping_address,amount_paid=amount_paid)
-            create_order.save()
-            #add order item
-            order_id = create_order.pk
-            #get product id
-            for product in cart_products():
-               product_id = product.id
-               price = product.price
-               for key,value in quantities().items():
-                if int(key) == product.id:
-                    create_order_item = OrderItem(order_id=order_id,product=product_id,user=user,quantity=value,price=price)
-                    create_order_item.save() 
-            #delete our cart
-            for key in list(request.session.key()):
-                if key == "session_key":
-                    del request.session[key]
-        
-
-            messages.success(request, "Order placed")
-            return redirect('home')
-    
-            
-       else:
-            #not logged in
-            create_order = Order(full_name=full_name,email=email,shipping_address=shipping_address,amount_paid=amount_paid)
-            create_order.save()
-            
-            #add order item
-            order_id = create_order.pk
-            #get product id
-            for product in cart_products():
-               product_id = product.id
-               price = product.price
-               for key,value in quantities().items():
-                if int(key) == product.id:
-                    create_order_item = OrderItem(order_id=order_id,product=product_id,quantity=value,price=price)
-                    create_order_item.save() 
-                
-            #delete our cart
-            for key in list(request.session.key()):
-                if key == "session_key":
-                    del request.session[key]
-            
-            #del cart from db(old cart field)
-            current_user = Profile.objects.filter(user__id=request.user.id)
-            #de shopping cart
-            current_user.update(old_carty="")
-            messages.success(request, "Order placed")
-            return redirect('home')
-    else:
-        messages.success(request, "Access denied")
-        return redirect('home') 
-      
-def billing_info(request):
- if request.POST:
     cart = Cart(request)
     cart_products = cart.get_prods
     quantities = cart.get_quants
     totals = cart.cart_total()
-    
-    #create a session with shipping info
-    my_shipping =request.POST
-    request.session['my_shipping'] = my_shipping
-   
-    #check if user is logged in
+
+    my_shipping_raw = request.session.get('my_shipping', {})
+    # Session stores lists for each value when saving POST dict
+    def get_val(d, key):
+        v = d.get(key, [''])
+        return v[0] if isinstance(v, list) else v
+
+    full_name = get_val(my_shipping_raw, 'shipping_full_name')
+    email = get_val(my_shipping_raw, 'shipping_email')
+    shipping_address = (
+        f"{get_val(my_shipping_raw, 'shipping_address1')}\n"
+        f"{get_val(my_shipping_raw, 'shipping_address2')}\n"
+        f"{get_val(my_shipping_raw, 'shipping_city')}\n"
+        f"{get_val(my_shipping_raw, 'shipping_state')}\n"
+        f"{get_val(my_shipping_raw, 'shipping_zipcode')}\n"
+        f"{get_val(my_shipping_raw, 'shipping_country')}"
+    )
+
+    payment_intent_id = request.session.get('payment_intent_id', '')
+    payment_intent_status = request.POST.get('payment_intent_status', '')
+
+    # Only create order if Stripe confirmed the payment
+    if payment_intent_status != 'succeeded':
+        messages.error(request, "Payment was not completed. Please try again.")
+        return redirect('checkout')
+
     if request.user.is_authenticated:
-        billing_form =PaymentForm() 
-        return render(request, "payment/billing_info.html", {"cart_products": cart_products, "quantities":quantities,"totals":totals,"shipping_info":request.POST,"billing_form":billing_form})  
+        create_order = Order(
+            user=request.user,
+            full_name=full_name,
+            email=email,
+            shipping_address=shipping_address,
+            amount_paid=totals,
+            stripe_payment_intent=payment_intent_id,
+            status=Order.STATUS_PROCESSING,
+        )
     else:
-     billing_form =PaymentForm() 
-    return render(request, "payment/billing_info.html", {"cart_products": cart_products, "quantities":quantities,"totals":totals,"shipping_info":request.POST,"billing_form":billing_form}) 
-    #return render(request, "payment/billing_info.html", {"cart_products": cart_products, "quantities":quantities,"totals":totals,"shipping_form":shipping_form})
- else:
-     messages.success(request, "Access denied")
-     return redirect('home') 
-    
-     
-def checkout(request):
-    
-    cart = Cart(request)
-    cart_products = cart.get_prods
-    quantities = cart.get_quants
-    totals = cart.cart_total()
-    
+        create_order = Order(
+            full_name=full_name,
+            email=email,
+            shipping_address=shipping_address,
+            amount_paid=totals,
+            stripe_payment_intent=payment_intent_id,
+            status=Order.STATUS_PROCESSING,
+        )
+
+    create_order.save()
+    order_id = create_order.pk
+
+    for product in cart_products():
+        qty = quantities().get(str(product.id), 1)
+        OrderItem.objects.create(
+            order_id=order_id,
+            product=product,
+            user=request.user if request.user.is_authenticated else None,
+            quantity=qty,
+            price=product.price,
+        )
+
+    # Clear cart from session
+    if 'cart' in request.session:
+        del request.session['cart']
+    if 'my_shipping' in request.session:
+        del request.session['my_shipping']
+    if 'payment_intent_id' in request.session:
+        del request.session['payment_intent_id']
+    request.session.modified = True
+
+    # Clear saved cart from profile
     if request.user.is_authenticated:
-        #checkout as logged in user
-      
-       shipping_user = ShippingAddress.objects.get(user_id=request.user.id)
-       shipping_form = ShippingForm(request.POST or None, instance=shipping_user)
-       
-       return render(request, "payment/checkout.html", {"cart_products": cart_products, "quantities":quantities,"totals":totals,"shipping_form":shipping_form})
-  
-    else: 
-        #checkout as guest
-        shipping_form = ShippingForm(request.POST or None)
-    return render(request, "payment/checkout.html", {"cart_products": cart_products, "quantities":quantities,"totals":totals,"shipping_form":shipping_form})
+        try:
+            profile = Profile.objects.get(user=request.user)
+            profile.old_carty = ""
+            profile.save()
+        except Profile.DoesNotExist:
+            pass
 
-  
+    messages.success(request, f"Order placed! Your tracking number is {create_order.tracking_number or 'pending'}.")
+    return redirect('payment_success', pk=order_id)
 
-def payment_success(request):
-    return render(request, "payment/payment_success.html", {})
 
-      
+def payment_success(request, pk):
+    order = get_object_or_404(Order, pk=pk)
+    items = OrderItem.objects.filter(order=order).select_related('product')
+    return render(request, "payment/payment_success.html", {'order': order, 'items': items})

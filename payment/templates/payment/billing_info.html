@@ -4,17 +4,16 @@
 <header class="page-header text-white text-center">
     <div class="container">
         <h1 class="display-4 fw-bold mb-2">Payment</h1>
-        <p class="lead text-white-50">Secure checkout</p>
+        <p class="lead text-white-50">Secure checkout powered by Stripe</p>
     </div>
 </header>
 
-<!-- Progress bar -->
 <div class="bg-white border-bottom py-3">
     <div class="container">
         <div class="d-flex justify-content-center align-items-center gap-2 small fw-semibold">
-            <span class="badge bg-ft-purple rounded-pill px-3 py-2">1. Cart</span>
+            <span class="badge bg-ft-purple rounded-pill px-3 py-2">✓ Cart</span>
             <i class="bi bi-chevron-right text-muted"></i>
-            <span class="badge bg-ft-purple rounded-pill px-3 py-2">2. Shipping</span>
+            <span class="badge bg-ft-purple rounded-pill px-3 py-2">✓ Shipping</span>
             <i class="bi bi-chevron-right text-muted"></i>
             <span class="badge bg-ft-purple rounded-pill px-3 py-2">3. Payment</span>
         </div>
@@ -38,15 +37,15 @@
                     <span class="fw-bold small" style="color:#6f42c1;">R{{ product.price }}</span>
                 </div>
                 {% endfor %}
-                <div class="d-flex justify-content-between fw-bold">
+                <div class="d-flex justify-content-between fw-bold pt-1">
                     <span>Total</span>
-                    <span style="color:#6f42c1;">R{{ totals }}</span>
+                    <span style="color:#6f42c1; font-size:1.1rem;">R{{ totals }}</span>
                 </div>
             </div>
 
             <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
                 <h6 class="fw-bold mb-3"><i class="bi bi-geo-alt me-2" style="color:#6f42c1;"></i>Delivering to</h6>
-                <div class="text-muted small" style="line-height:1.8;">
+                <div class="text-muted small" style="line-height:1.9;">
                     <strong class="text-dark">{{ shippping_info.shipping_full_name }}</strong><br>
                     {{ shippping_info.shipping_address1 }}<br>
                     {% if shippping_info.shipping_address2 %}{{ shippping_info.shipping_address2 }}<br>{% endif %}
@@ -59,29 +58,109 @@
             </div>
         </div>
 
-        <!-- Payment form -->
+        <!-- Stripe Payment -->
         <div class="col-lg-7 order-lg-1">
             <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
                 <h5 class="fw-bold mb-1"><i class="bi bi-credit-card me-2" style="color:#6f42c1;"></i>Card Details</h5>
-                <p class="text-muted small mb-4"><i class="bi bi-shield-check me-1"></i>Your payment info is secure and encrypted</p>
-                <form method="POST" action="{% url 'process_order' %}">
-                    {% csrf_token %}
-                    {% for field in billing_form %}
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold small">{{ field.label }}</label>
-                        {{ field }}
-                        {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-                    </div>
-                    {% endfor %}
-                    <div class="d-grid mt-4">
-                        <button type="submit" class="btn btn-success btn-lg fw-semibold" style="border-radius:50px;">
-                            <i class="bi bi-lock me-2"></i>Pay R{{ totals }}
-                        </button>
-                    </div>
-                </form>
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-shield-check me-1 text-success"></i>Secured by Stripe — your card info never touches our servers
+                </p>
+
+                <!-- Test card hint -->
+                <div class="alert alert-info small py-2 mb-4" role="alert">
+                    <strong>🧪 Test mode:</strong> Use card <code>4242 4242 4242 4242</code> · Any future expiry · Any 3-digit CVC
+                </div>
+
+                <div id="payment-error" class="alert alert-danger d-none mb-3" role="alert"></div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Name on card</label>
+                    <input type="text" id="card-name" class="form-control" placeholder="Full name as on card" required>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold small">Card details</label>
+                    <div id="card-element" class="form-control py-2" style="height:auto; min-height:42px;"></div>
+                    <div id="card-errors" class="text-danger small mt-1"></div>
+                </div>
+
+                <div class="d-grid">
+                    <button id="pay-btn" class="btn btn-success btn-lg fw-semibold" style="border-radius:50px;">
+                        <span id="pay-btn-text"><i class="bi bi-lock me-2"></i>Pay R{{ totals }}</span>
+                        <span id="pay-btn-spinner" class="d-none">
+                            <span class="spinner-border spinner-border-sm me-2"></span>Processing...
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Stripe logos -->
+                <div class="text-center mt-3">
+                    <small class="text-muted">
+                        <i class="bi bi-lock-fill me-1"></i>256-bit SSL &nbsp;·&nbsp;
+                        <img src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/stripe.svg" height="14" style="opacity:0.4"> Stripe secured
+                    </small>
+                </div>
             </div>
         </div>
-
     </div>
 </div>
+
+<!-- Hidden form that posts to process_order after Stripe confirms -->
+<form id="order-form" method="POST" action="{% url 'process_order' %}" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="payment_intent_status" id="payment_intent_status" value="">
+</form>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+const stripe = Stripe('{{ stripe_public_key }}');
+const clientSecret = '{{ client_secret }}';
+const elements = stripe.elements();
+
+const cardElement = elements.create('card', {
+    style: {
+        base: {
+            fontFamily: "'Inter', sans-serif",
+            fontSize: '15px',
+            color: '#212529',
+            '::placeholder': { color: '#adb5bd' }
+        },
+        invalid: { color: '#dc3545' }
+    }
+});
+cardElement.mount('#card-element');
+
+cardElement.on('change', function(event) {
+    document.getElementById('card-errors').textContent = event.error ? event.error.message : '';
+});
+
+document.getElementById('pay-btn').addEventListener('click', async function(e) {
+    e.preventDefault();
+    const btn = this;
+    btn.disabled = true;
+    document.getElementById('pay-btn-text').classList.add('d-none');
+    document.getElementById('pay-btn-spinner').classList.remove('d-none');
+    document.getElementById('payment-error').classList.add('d-none');
+
+    const cardName = document.getElementById('card-name').value;
+
+    const { paymentIntent, error } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+            card: cardElement,
+            billing_details: { name: cardName }
+        }
+    });
+
+    if (error) {
+        document.getElementById('payment-error').textContent = error.message;
+        document.getElementById('payment-error').classList.remove('d-none');
+        btn.disabled = false;
+        document.getElementById('pay-btn-text').classList.remove('d-none');
+        document.getElementById('pay-btn-spinner').classList.add('d-none');
+    } else if (paymentIntent.status === 'succeeded') {
+        document.getElementById('payment_intent_status').value = 'succeeded';
+        document.getElementById('order-form').submit();
+    }
+});
+</script>
 {% endblock %}

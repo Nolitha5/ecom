@@ -1,0 +1,74 @@
+{% extends 'myApp/base.html' %}
+{% block content %}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <a href="{% url 'my_orders' %}" class="text-muted small">← My Orders</a>
+                    <h3 class="fw-bold mb-0 mt-1">Order #{{ order.id }}</h3>
+                </div>
+                <span class="badge px-3 py-2
+                    {% if order.status == 'delivered' %}bg-success
+                    {% elif order.status == 'shipped' %}bg-primary
+                    {% elif order.status == 'processing' %}bg-warning text-dark
+                    {% else %}bg-secondary{% endif %}" style="border-radius:50px;">
+                    {{ order.get_status_display }}
+                </span>
+            </div>
+
+            <!-- Status bar -->
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius:16px;">
+                <h6 class="fw-bold mb-3">Shipping Progress</h6>
+                <div class="d-flex align-items-center">
+                    {% for label, step_status in progress %}
+                    <div class="text-center flex-fill">
+                        <div class="mx-auto mb-1 d-flex align-items-center justify-content-center" style="width:34px;height:34px;border-radius:50%;background:{{ step_status }};">
+                            <i class="bi bi-check-lg text-white"></i>
+                        </div>
+                        <small class="text-muted" style="font-size:0.7rem;">{{ label }}</small>
+                    </div>
+                    {% if not forloop.last %}
+                    <div class="flex-fill" style="height:2px;background:#e9ecef;margin-bottom:22px;"></div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% if order.tracking_number %}
+                <div class="text-center mt-3 p-2" style="background:#f8f4ff;border-radius:10px;">
+                    <small class="text-muted">Tracking: <strong style="color:#6f42c1;letter-spacing:1px;">{{ order.tracking_number }}</strong></small>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Items -->
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius:16px;">
+                <h6 class="fw-bold mb-3"><i class="bi bi-bag me-2" style="color:#6f42c1;"></i>Items</h6>
+                {% for item in items %}
+                <div class="d-flex align-items-center gap-3 py-2 border-bottom">
+                    <img src="{{ item.product.image.url }}" style="width:50px;height:50px;object-fit:cover;border-radius:8px;" alt="">
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold small">{{ item.product.name }}</div>
+                        <div class="text-muted small">× {{ item.quantity }}</div>
+                    </div>
+                    <span class="fw-bold small" style="color:#6f42c1;">R{{ item.price }}</span>
+                </div>
+                {% endfor %}
+                <div class="d-flex justify-content-between fw-bold pt-3">
+                    <span>Total</span>
+                    <span style="color:#6f42c1;">R{{ order.amount_paid }}</span>
+                </div>
+            </div>
+
+            <!-- Shipping address -->
+            <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
+                <h6 class="fw-bold mb-3"><i class="bi bi-geo-alt me-2" style="color:#6f42c1;"></i>Shipping Address</h6>
+                <pre class="text-muted small mb-0" style="font-family:inherit;white-space:pre-wrap;">{{ order.shipping_address }}</pre>
+                {% if order.date_shipped %}<p class="text-muted small mt-3 mb-0">Shipped on {{ order.date_shipped|date:"d M Y" }}</p>{% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

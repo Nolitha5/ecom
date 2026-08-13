@@ -29,6 +29,8 @@
                     <ul class="dropdown-menu border-0 shadow">
                         <li><a class="dropdown-item" href="{% url 'update_user' %}"><i class="bi bi-person me-2"></i>My Profile</a></li>
                         <li><a class="dropdown-item" href="{% url 'update_info' %}"><i class="bi bi-geo-alt me-2"></i>Shipping Info</a></li>
+                        <li><a class="dropdown-item" href="{% url 'my_orders' %}"><i class="bi bi-bag me-2"></i>My Orders</a></li>
+                        <li><a class="dropdown-item" href="{% url 'track_order' %}"><i class="bi bi-search me-2"></i>Track Order</a></li>
                         {% if user.is_superuser %}
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'not_shipped_dash' %}"><i class="bi bi-clock me-2"></i>Unshipped Orders</a></li>

@@ -1,15 +1,40 @@
 {% extends 'myApp/base.html' %}
 {% block content %}
-
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-6 text-center">
-            <div class="card border-0 shadow-sm p-5" style="border-radius:20px;">
+        <div class="col-md-7">
+            <div class="card border-0 shadow-sm p-5 text-center" style="border-radius:20px;">
                 <div style="font-size:4rem;">🎉</div>
-                <h2 class="fw-bold mt-3 mb-2" style="color:#6f42c1;">Order Placed!</h2>
-                <p class="text-muted mb-4">Thank you for shopping with Floral Threads. We'll get your order packed and on its way soon.</p>
-                <div class="d-flex gap-3 justify-content-center">
-                    <a href="{% url 'home' %}" class="btn btn-ft px-4" style="border-radius:50px;">Continue Shopping</a>
+                <h2 class="fw-bold mt-3 mb-1" style="color:#6f42c1;">Order Confirmed!</h2>
+                <p class="text-muted mb-4">Thank you, <strong>{{ order.full_name }}</strong>. We've received your order and it's being prepared.</p>
+
+                {% if order.tracking_number %}
+                <div class="alert py-3 mb-4" style="background:#f8f4ff; border:1.5px solid #6f42c1; border-radius:12px;">
+                    <p class="small text-muted mb-1">Your tracking number</p>
+                    <h4 class="fw-bold mb-0" style="color:#6f42c1; letter-spacing:2px;">{{ order.tracking_number }}</h4>
+                    <p class="small text-muted mt-1 mb-0">Save this to track your order anytime</p>
+                </div>
+                {% endif %}
+
+                <div class="card border-0 bg-light p-3 mb-4 text-start" style="border-radius:12px;">
+                    <h6 class="fw-bold mb-3">Order Summary</h6>
+                    {% for item in items %}
+                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                        <span class="small">{{ item.product.name }} <span class="text-muted">× {{ item.quantity }}</span></span>
+                        <span class="fw-semibold small" style="color:#6f42c1;">R{{ item.price }}</span>
+                    </div>
+                    {% endfor %}
+                    <div class="d-flex justify-content-between mt-2 fw-bold">
+                        <span>Total Paid</span>
+                        <span style="color:#6f42c1;">R{{ order.amount_paid }}</span>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-3 justify-content-center flex-wrap">
+                    <a href="{% url 'track_order' %}" class="btn btn-ft px-4" style="border-radius:50px;">
+                        <i class="bi bi-geo-alt me-1"></i>Track Order
+                    </a>
+                    <a href="{% url 'home' %}" class="btn btn-outline-secondary px-4" style="border-radius:50px;">Continue Shopping</a>
                 </div>
             </div>
         </div>
