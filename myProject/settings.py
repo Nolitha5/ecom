@@ -90,15 +90,25 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
-       
     }
 }
-#database_url = os.environ.get("DATABASES_URL")
-#DATABASES["default"]= dj_database_url.parse(database_url)
 
+# On Render, set DATABASE_URL (Postgres) so data survives redeploys.
 database_url = os.getenv("DATABASE_URL")
 if isinstance(database_url, bytes):
     database_url = database_url.decode("utf-8")
+if database_url:
+    DATABASES["default"] = dj_database_url.parse(database_url, conn_max_age=600)
+
+# Render terminates HTTPS at a proxy: tell Django the request was secure
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{h}" for h in ALLOWED_HOSTS if h and h not in ("localhost", "127.0.0.1", "*")
+]
+_render_host = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if _render_host:
+    ALLOWED_HOSTS.append(_render_host)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_render_host}")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
