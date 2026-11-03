@@ -1,5 +1,4 @@
-myVenv/__pycache__/
-*.pyc
 myVenv/
-db.sqlite3
+__pycache__/
+*.pyc
 .env
