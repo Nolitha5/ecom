@@ -42,24 +42,18 @@
             </div>
 
             <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
-                <h6 class="fw-bold mb-3"><i class="bi bi-truck me-2" style="color:#6f42c1;"></i>Update Shipping Status</h6>
-                {% if not order.shipped %}
-                <form method="POST">
+                <h6 class="fw-bold mb-3"><i class="bi bi-truck me-2" style="color:#6f42c1;"></i>Update Order Status</h6>
+                <p class="small text-muted">Tracking: <strong>{{ order.tracking_number }}</strong></p>
+                <form method="POST" class="d-flex gap-2">
                     {% csrf_token %}
-                    <input type="hidden" name="shipping_status" value="true">
-                    <button type="submit" class="btn btn-success fw-semibold">
-                        <i class="bi bi-check-circle me-1"></i>Mark as Shipped
-                    </button>
+                    <select name="order_status" class="form-select">
+                        <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="processing" {% if order.status == 'processing' %}selected{% endif %}>Processing</option>
+                        <option value="shipped" {% if order.status == 'shipped' %}selected{% endif %}>Shipped</option>
+                        <option value="delivered" {% if order.status == 'delivered' %}selected{% endif %}>Delivered</option>
+                    </select>
+                    <button type="submit" class="btn btn-ft fw-semibold">Update</button>
                 </form>
-                {% else %}
-                <form method="POST">
-                    {% csrf_token %}
-                    <input type="hidden" name="shipping_status" value="false">
-                    <button type="submit" class="btn btn-outline-danger fw-semibold">
-                        <i class="bi bi-x-circle me-1"></i>Mark as Not Shipped
-                    </button>
-                </form>
-                {% endif %}
             </div>
 
         </div>

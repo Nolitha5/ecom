@@ -12,7 +12,7 @@ import datetime
 import stripe
 import json
 
-stripe.api_key = settings.STRIPE_SECRET_KEY
+stripe.api_key = settings.STRIPE_SECRET_KEY or None
 
 
 # ─── Customer: track your order ───────────────────────────────────────────────
@@ -61,7 +61,11 @@ def my_order_detail(request, pk):
         return redirect('login')
     order = get_object_or_404(Order, pk=pk, user=request.user)
     items = OrderItem.objects.filter(order=order).select_related('product')
-    return render(request, 'payment/my_order_detail.html', {'order': order, 'items': items})
+    order_flow = ['pending', 'processing', 'shipped', 'delivered']
+    idx = order_flow.index(order.status) if order.status in order_flow else 0
+    progress = [(label, '#6f42c1' if i <= idx else '#e9ecef')
+                for i, label in enumerate(['Ordered', 'Processing', 'Shipped', 'Delivered'])]
+    return render(request, 'payment/my_order_detail.html', {'order': order, 'items': items, 'progress': progress})
 
 
 # ─── Admin dashboards ─────────────────────────────────────────────────────────
@@ -73,12 +77,12 @@ def orders(request, pk):
     order = get_object_or_404(Order, id=pk)
     items = OrderItem.objects.filter(order=pk)
     if request.POST:
-        status = request.POST.get('shipping_status')
-        new_status = request.POST.get('order_status', order.status)
-        if status == "true":
-            Order.objects.filter(id=pk).update(shipped=True, status=new_status)
-        else:
-            Order.objects.filter(id=pk).update(shipped=False, status=new_status)
+        new_status = request.POST.get('order_status')
+        if not new_status:
+            new_status = 'shipped' if request.POST.get('shipping_status') == 'true' else 'processing'
+        order.status = new_status
+        order.shipped = new_status in ('shipped', 'delivered')
+        order.save()
         messages.success(request, "Order updated successfully.")
         return redirect('orders', pk=pk)
     return render(request, "payment/orders.html", {"order": order, "items": items})
@@ -91,7 +95,9 @@ def not_shipped_dash(request):
     orders = Order.objects.filter(shipped=False).order_by('-date_ordered')
     if request.POST:
         num = request.POST.get('num')
-        Order.objects.filter(id=num).update(shipped=True)
+        o = get_object_or_404(Order, id=num)
+        o.shipped, o.status = True, Order.STATUS_SHIPPED
+        o.save()
         messages.success(request, "Marked as shipped.")
         return redirect('not_shipped_dash')
     return render(request, "payment/not_shipped_dash.html", {"orders": orders})
@@ -104,7 +110,9 @@ def shipped_dash(request):
     orders = Order.objects.filter(shipped=True).order_by('-date_shipped')
     if request.POST:
         num = request.POST.get('num')
-        Order.objects.filter(id=num).update(shipped=False)
+        o = get_object_or_404(Order, id=num)
+        o.shipped, o.status = False, Order.STATUS_PROCESSING
+        o.save()
         messages.success(request, "Marked as not shipped.")
         return redirect('shipped_dash')
     return render(request, "payment/shipped_dash.html", {"orders": orders})
@@ -151,27 +159,26 @@ def billing_info(request):
 
     request.session['my_shipping'] = dict(request.POST)
 
-    # Create Stripe PaymentIntent
-    try:
-        intent = stripe.PaymentIntent.create(
-            amount=int(float(totals) * 100),  # cents
-            currency='zar',
-            metadata={'integration_check': 'accept_a_payment'},
-        )
-        client_secret = intent.client_secret
-        payment_intent_id = intent.id
-        request.session['payment_intent_id'] = payment_intent_id
-    except stripe.error.StripeError as e:
-        messages.error(request, f"Payment setup failed: {e.user_message}")
-        return redirect('checkout')
+    client_secret = ''
+    if settings.STRIPE_ENABLED:
+        try:
+            intent = stripe.PaymentIntent.create(
+                amount=int(round(float(totals) * 100)),  # cents
+                currency='zar',
+                automatic_payment_methods={'enabled': True, 'allow_redirects': 'never'},
+            )
+            client_secret = intent.client_secret
+            request.session['payment_intent_id'] = intent.id
+        except stripe.StripeError as e:
+            messages.error(request, f"Payment setup failed: {getattr(e, 'user_message', None) or str(e)}")
+            return redirect('checkout')
 
-    billing_form = PaymentForm()
     return render(request, "payment/billing_info.html", {
         "cart_products": cart_products,
         "quantities": quantities,
         "totals": totals,
         "shippping_info": request.POST,
-        "billing_form": billing_form,
+        "stripe_enabled": settings.STRIPE_ENABLED,
         "stripe_public_key": settings.STRIPE_PUBLIC_KEY,
         "client_secret": client_secret,
     })
@@ -205,10 +212,21 @@ def process_order(request):
     )
 
     payment_intent_id = request.session.get('payment_intent_id', '')
-    payment_intent_status = request.POST.get('payment_intent_status', '')
+    paid = False
+    if settings.STRIPE_ENABLED:
+        # Never trust the browser: ask Stripe whether this intent really succeeded
+        try:
+            intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+            paid = intent.status == 'succeeded'
+        except Exception:
+            paid = False
+    else:
+        # Test mode (no Stripe keys): only the standard Stripe test card is accepted
+        card = request.POST.get('test_card_number', '').replace(' ', '')
+        paid = card == '4242424242424242'
+        payment_intent_id = 'TEST-MODE'
 
-    # Only create order if Stripe confirmed the payment
-    if payment_intent_status != 'succeeded':
+    if not paid:
         messages.error(request, "Payment was not completed. Please try again.")
         return redirect('checkout')
 
@@ -263,7 +281,7 @@ def process_order(request):
         except Profile.DoesNotExist:
             pass
 
-    messages.success(request, f"Order placed! Your tracking number is {create_order.tracking_number or 'pending'}.")
+    messages.success(request, f"Order placed! Your tracking number is {create_order.tracking_number}.")
     return redirect('payment_success', pk=order_id)
 
 

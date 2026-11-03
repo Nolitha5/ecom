@@ -58,109 +58,83 @@
             </div>
         </div>
 
-        <!-- Stripe Payment -->
+        <!-- Payment -->
         <div class="col-lg-7 order-lg-1">
             <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
                 <h5 class="fw-bold mb-1"><i class="bi bi-credit-card me-2" style="color:#6f42c1;"></i>Card Details</h5>
-                <p class="text-muted small mb-3">
-                    <i class="bi bi-shield-check me-1 text-success"></i>Secured by Stripe — your card info never touches our servers
-                </p>
-
-                <!-- Test card hint -->
-                <div class="alert alert-info small py-2 mb-4" role="alert">
-                    <strong>🧪 Test mode:</strong> Use card <code>4242 4242 4242 4242</code> · Any future expiry · Any 3-digit CVC
+                <div class="alert alert-info small py-2 my-3" role="alert">
+                    <strong>🧪 Test mode:</strong> use card <code>4242 4242 4242 4242</code> · any future expiry · any 3-digit CVC. No real money is charged.
                 </div>
-
                 <div id="payment-error" class="alert alert-danger d-none mb-3" role="alert"></div>
 
+                {% if stripe_enabled %}
                 <div class="mb-3">
                     <label class="form-label fw-semibold small">Name on card</label>
-                    <input type="text" id="card-name" class="form-control" placeholder="Full name as on card" required>
+                    <input type="text" id="card-name" class="form-control" placeholder="Full name as on card">
                 </div>
-
                 <div class="mb-4">
                     <label class="form-label fw-semibold small">Card details</label>
                     <div id="card-element" class="form-control py-2" style="height:auto; min-height:42px;"></div>
                     <div id="card-errors" class="text-danger small mt-1"></div>
                 </div>
-
                 <div class="d-grid">
                     <button id="pay-btn" class="btn btn-success btn-lg fw-semibold" style="border-radius:50px;">
                         <span id="pay-btn-text"><i class="bi bi-lock me-2"></i>Pay R{{ totals }}</span>
-                        <span id="pay-btn-spinner" class="d-none">
-                            <span class="spinner-border spinner-border-sm me-2"></span>Processing...
-                        </span>
+                        <span id="pay-btn-spinner" class="d-none"><span class="spinner-border spinner-border-sm me-2"></span>Processing...</span>
                     </button>
                 </div>
-
-                <!-- Stripe logos -->
-                <div class="text-center mt-3">
-                    <small class="text-muted">
-                        <i class="bi bi-lock-fill me-1"></i>256-bit SSL &nbsp;·&nbsp;
-                        <img src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/stripe.svg" height="14" style="opacity:0.4"> Stripe secured
-                    </small>
-                </div>
+                <form id="order-form" method="POST" action="{% url 'process_order' %}" style="display:none;">{% csrf_token %}</form>
+                {% else %}
+                <form method="POST" action="{% url 'process_order' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Name on card</label>
+                        <input type="text" name="test_card_name" class="form-control" placeholder="Full name as on card" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Card number</label>
+                        <input type="text" name="test_card_number" class="form-control" placeholder="4242 4242 4242 4242" inputmode="numeric" maxlength="19" required>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col"><label class="form-label fw-semibold small">Expiry</label><input type="text" class="form-control" placeholder="MM/YY" maxlength="5" required></div>
+                        <div class="col"><label class="form-label fw-semibold small">CVC</label><input type="text" class="form-control" placeholder="123" maxlength="4" required></div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg fw-semibold" style="border-radius:50px;"><i class="bi bi-lock me-2"></i>Pay R{{ totals }}</button>
+                    </div>
+                </form>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Hidden form that posts to process_order after Stripe confirms -->
-<form id="order-form" method="POST" action="{% url 'process_order' %}" style="display:none;">
-    {% csrf_token %}
-    <input type="hidden" name="payment_intent_status" id="payment_intent_status" value="">
-</form>
-
+{% if stripe_enabled %}
 <script src="https://js.stripe.com/v3/"></script>
 <script>
 const stripe = Stripe('{{ stripe_public_key }}');
 const clientSecret = '{{ client_secret }}';
-const elements = stripe.elements();
-
-const cardElement = elements.create('card', {
-    style: {
-        base: {
-            fontFamily: "'Inter', sans-serif",
-            fontSize: '15px',
-            color: '#212529',
-            '::placeholder': { color: '#adb5bd' }
-        },
-        invalid: { color: '#dc3545' }
-    }
-});
+const cardElement = stripe.elements().create('card', {style:{base:{fontFamily:"'Inter', sans-serif",fontSize:'15px'},invalid:{color:'#dc3545'}}});
 cardElement.mount('#card-element');
-
-cardElement.on('change', function(event) {
-    document.getElementById('card-errors').textContent = event.error ? event.error.message : '';
-});
-
+cardElement.on('change', e => document.getElementById('card-errors').textContent = e.error ? e.error.message : '');
 document.getElementById('pay-btn').addEventListener('click', async function(e) {
     e.preventDefault();
-    const btn = this;
-    btn.disabled = true;
+    const btn = this; btn.disabled = true;
     document.getElementById('pay-btn-text').classList.add('d-none');
     document.getElementById('pay-btn-spinner').classList.remove('d-none');
-    document.getElementById('payment-error').classList.add('d-none');
-
-    const cardName = document.getElementById('card-name').value;
-
-    const { paymentIntent, error } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-            card: cardElement,
-            billing_details: { name: cardName }
-        }
+    const {paymentIntent, error} = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {card: cardElement, billing_details: {name: document.getElementById('card-name').value}}
     });
-
     if (error) {
-        document.getElementById('payment-error').textContent = error.message;
-        document.getElementById('payment-error').classList.remove('d-none');
+        const box = document.getElementById('payment-error');
+        box.textContent = error.message; box.classList.remove('d-none');
         btn.disabled = false;
         document.getElementById('pay-btn-text').classList.remove('d-none');
         document.getElementById('pay-btn-spinner').classList.add('d-none');
     } else if (paymentIntent.status === 'succeeded') {
-        document.getElementById('payment_intent_status').value = 'succeeded';
-        document.getElementById('order-form').submit();
+        document.getElementById('order-form').submit();  // server re-verifies with Stripe
     }
 });
 </script>
+{% endif %}
 {% endblock %}

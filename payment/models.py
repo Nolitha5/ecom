@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from myApp.models import Product
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-import datetime
+from django.utils import timezone
 import uuid
 
 
@@ -60,6 +60,11 @@ class Order(models.Model):
     tracking_number = models.CharField(max_length=100, blank=True, null=True)
     stripe_payment_intent = models.CharField(max_length=255, blank=True, null=True)
 
+    def save(self, *args, **kwargs):
+        if not self.tracking_number:
+            self.tracking_number = 'FT-' + uuid.uuid4().hex[:10].upper()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f'Order #{self.id} — {self.full_name}'
 
@@ -67,13 +72,11 @@ class Order(models.Model):
 @receiver(pre_save, sender=Order)
 def set_shipped_date_on_update(sender, instance, **kwargs):
     if instance.pk:
-        now = datetime.datetime.now()
+        now = timezone.now()
         obj = sender._default_manager.get(pk=instance.pk)
         if instance.shipped and not obj.shipped:
             instance.date_shipped = now
             instance.status = Order.STATUS_SHIPPED
-            if not instance.tracking_number:
-                instance.tracking_number = 'FT-' + uuid.uuid4().hex[:10].upper()
 
 
 class OrderItem(models.Model):

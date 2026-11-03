@@ -159,5 +159,8 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 #django_heroku.settings(locals())
 # Stripe
-STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "pk_test_51Qexample")
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "sk_test_51QExample")
+STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "").strip()
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+# Real Stripe checkout only when both keys are configured; otherwise the
+# site falls back to a clearly-labelled test-mode checkout (no real charge).
+STRIPE_ENABLED = STRIPE_PUBLIC_KEY.startswith("pk_") and STRIPE_SECRET_KEY.startswith("sk_")
